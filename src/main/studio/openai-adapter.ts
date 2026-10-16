@@ -1,8 +1,9 @@
 import OpenAI, { toFile } from 'openai';
 import { EnvHttpProxyAgent } from 'undici';
 import sharp from 'sharp';
+import { z } from 'zod';
 import type { SellerId } from '../../shared/contracts';
-import type { PromptSnapshot, QualityReport } from '../../shared/studio-contracts';
+import type { ImageAnalysis, PromptSnapshot, QualityReport } from '../../shared/studio-contracts';
 import type { CredentialStore } from './credentials';
 import { qualitySchema } from './jobs';
 import { interpolate } from '../../shared/interpolation';
@@ -34,6 +35,63 @@ const reportJsonSchema = {
   required: ['passed', 'errors', 'verdict', 'repairPrompt'],
   additionalProperties: false,
 };
+const analysisJsonSchema = {
+  type: 'object',
+  properties: {
+    productTypeRu: { type: 'string' },
+    colorsRu: { type: 'array', items: { type: 'string' } },
+    productNameRu: { type: 'string' },
+    descriptionRu: { type: 'string' },
+    observedAttributesRu: { type: 'array', items: { type: 'string' } },
+    uncertainAttributesRu: { type: 'array', items: { type: 'string' } },
+    textProposals: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          assetIndex: { type: 'integer', minimum: 0, maximum: 5 },
+          role: { type: 'string', enum: ['hero', 'infographic', 'advertising', 'detail'] },
+          enabled: { type: 'boolean' },
+          approved: { type: 'boolean' },
+          titleRu: { type: 'string' },
+          bodyRu: { type: 'string' },
+        },
+        required: ['assetIndex', 'role', 'enabled', 'approved', 'titleRu', 'bodyRu'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: [
+    'productTypeRu',
+    'colorsRu',
+    'productNameRu',
+    'descriptionRu',
+    'observedAttributesRu',
+    'uncertainAttributesRu',
+    'textProposals',
+  ],
+  additionalProperties: false,
+};
+const analysisSchema = z.object({
+  productTypeRu: z.string().max(500),
+  colorsRu: z.array(z.string().max(200)).max(20),
+  productNameRu: z.string().max(500),
+  descriptionRu: z.string().max(3000),
+  observedAttributesRu: z.array(z.string().max(500)).max(40),
+  uncertainAttributesRu: z.array(z.string().max(500)).max(40),
+  textProposals: z
+    .array(
+      z.object({
+        assetIndex: z.number().int().min(0).max(5),
+        role: z.enum(['hero', 'infographic', 'advertising', 'detail']),
+        enabled: z.boolean(),
+        approved: z.boolean(),
+        titleRu: z.string().max(500),
+        bodyRu: z.string().max(2000),
+      }),
+    )
+    .max(6),
+});
 function errorCode(error: unknown) {
   const e = error as { status?: number; code?: string; name?: string; cause?: { name?: string } };
   if (e.status === 401) return 'invalid_api_key';
@@ -56,6 +114,17 @@ function errorCode(error: unknown) {
   )
     return error.message;
   return error instanceof OpenAI.APIConnectionError ? 'network' : 'invalid_response';
+}
+function apiSize(snapshot: PromptSnapshot) {
+  const ratio = snapshot.outputAspectRatio ?? snapshot.aspectRatio;
+  if (ratio === 'original') {
+    return snapshot.sourceWidth >= snapshot.sourceHeight
+      ? ('1536x1024' as const)
+      : ('1024x1536' as const);
+  }
+  if (ratio === '1:1') return '1024x1024' as const;
+  if (['3:2', '4:3', '16:9', '5:4', '21:9'].includes(ratio)) return '1536x1024' as const;
+  return '1024x1536' as const;
 }
 export class OpenAIStudioAdapter {
   constructor(
@@ -99,6 +168,55 @@ export class OpenAIStudioAdapter {
       return { ok: false, errorCode: errorCode(e) };
     }
   }
+  async analyze(inputs: Buffer[]): Promise<ImageAnalysis> {
+    try {
+      if (!inputs.length || inputs.length > 6) throw new Error('invalid_response');
+      const images = await Promise.all(
+        inputs.map(async (bytes) => {
+          const format = (await sharp(bytes).metadata()).format;
+          return {
+            type: 'input_image' as const,
+            detail: 'high' as const,
+            image_url: `data:image/${format === 'jpeg' ? 'jpeg' : format === 'webp' ? 'webp' : 'png'};base64,${bytes.toString('base64')}`,
+          };
+        }),
+      );
+      const response = await this.client().responses.create({
+        model: 'gpt-4.1-mini',
+        input: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'input_text',
+                text: 'Analyze each reference image. Return Russian suggestions only. Separate directly visible observations from uncertain or unverified attributes. Never invent material, brand, certificate, benefit or use. Propose text only when appropriate: hero usually has no text; infographic may have title, size and visible details; advertising uses a short Russian message; detail describes visible features. All proposals start disabled and unapproved for seller confirmation.',
+              },
+              ...images,
+            ],
+          },
+        ],
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'product_image_analysis',
+            strict: true,
+            schema: analysisJsonSchema,
+          },
+        },
+      });
+      if (response.status === 'incomplete') throw new Error('invalid_response');
+      const parsed = analysisSchema.parse(JSON.parse(response.output_text));
+      return {
+        ...parsed,
+        textProposals: parsed.textProposals
+          .filter((proposal) => proposal.assetIndex < inputs.length)
+          .map((proposal) => ({ ...proposal, enabled: false, approved: false })),
+      };
+    } catch (e) {
+      const code = errorCode(e);
+      throw new Error(code);
+    }
+  }
   async generate(snapshot: PromptSnapshot, inputs: Buffer[], signal: AbortSignal): Promise<Buffer> {
     try {
       if (snapshot.finalPrompt.length > 32000) throw new Error('invalid_prompt');
@@ -110,13 +228,14 @@ export class OpenAIStudioAdapter {
           return toFile(bytes, `reference-${i}.${format ?? 'png'}`, { type: mime });
         }),
       );
+      const size = apiSize(snapshot);
       const response = await this.client().images.edit(
         {
           model: 'gpt-image-1',
           image: files,
           prompt: snapshot.finalPrompt,
           n: 1,
-          size: '1024x1536',
+          size,
           output_format: 'png',
         },
         { signal },
@@ -130,7 +249,9 @@ export class OpenAIStudioAdapter {
         throw new Error('invalid_response');
       const bytes = Buffer.from(encoded, 'base64');
       const info = await sharp(bytes, { limitInputPixels: 40_000_000 }).metadata();
-      if (info.width !== 1024 || info.height !== 1536) throw new Error('invalid_response');
+      const [expectedWidth, expectedHeight] = size.split('x').map(Number);
+      if (info.width !== expectedWidth || info.height !== expectedHeight)
+        throw new Error('invalid_response');
       await sharp(bytes).stats();
       return bytes;
     } catch (e) {

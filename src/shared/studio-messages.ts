@@ -11,6 +11,8 @@ export const studioMessages: Record<string, string> = {
   refused: 'API từ chối yêu cầu.',
   model_unavailable: 'Model không khả dụng cho tài khoản.',
   invalid_prompt: 'Prompt vượt giới hạn 32.000 ký tự của model.',
+  invalid_size:
+    'Size phải là các khoảng hoặc cỡ chữ phân cách bằng dấu chấm phẩy, ví dụ 48-56; M; One Size.',
   interrupted: 'Tác vụ bị ngắt khi đóng ứng dụng.',
   unexpected_error: 'Không thể hoàn tất tác vụ. Kiểm tra kết nối hoặc quyền ghi dữ liệu.',
 };

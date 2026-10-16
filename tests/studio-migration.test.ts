@@ -13,15 +13,15 @@ test('v1 upgrades without losing prompts, history, favorite or defaults', () => 
   service.favorite('seller-a', p.id, true);
   service.setDefault('seller-a', 'hero', p.id);
   db.exec(
-    'DROP TABLE IF EXISTS assets; DROP TABLE IF EXISTS image_jobs; DROP TABLE IF EXISTS app_credentials; PRAGMA user_version=1',
+    'DROP TABLE IF EXISTS assets; DROP TABLE IF EXISTS image_jobs; DROP TABLE IF EXISTS app_credentials; DROP TABLE IF EXISTS seller_product_profiles; PRAGMA user_version=1',
   );
   migrate(db);
   migrate(db);
-  expect(db.pragma('user_version', { simple: true })).toBe(2);
+  expect(db.pragma('user_version', { simple: true })).toBe(3);
   expect(service.get('seller-a', p.id).isFavorite).toBe(true);
   expect(service.versions('seller-a', p.id)).toHaveLength(1);
   expect(service.defaults('seller-a')).toEqual({ hero: p.id });
-  db.pragma('user_version=3');
+  db.pragma('user_version=4');
   expect(() => migrate(db)).toThrow();
   db.close();
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { interpolate, variables } from '../shared/interpolation';
+import { interpolate, variableLabels, variables } from '../shared/interpolation';
 export function PromptPreview({ body }: { body: string }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const result = interpolate(body, values);
@@ -12,7 +12,7 @@ export function PromptPreview({ body }: { body: string }) {
       <div className="variable-grid">
         {variables.map((key) => (
           <label key={key}>
-            {key}
+            {variableLabels[key] ?? key}
             <input
               value={values[key] ?? ''}
               onChange={(e) => setValues({ ...values, [key]: e.target.value })}

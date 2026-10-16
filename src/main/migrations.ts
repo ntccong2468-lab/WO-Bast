@@ -1,8 +1,8 @@
 import type { Database } from 'better-sqlite3';
 export function migrate(db: Database) {
   const version = db.pragma('user_version', { simple: true }) as number;
-  if (version > 2) throw new Error('Database được tạo bởi phiên bản mới hơn');
-  if (version === 2) return;
+  if (version > 3) throw new Error('Database được tạo bởi phiên bản mới hơn');
+  if (version === 3) return;
   db.transaction(() => {
     if (version < 1)
       db.exec(`
@@ -13,11 +13,17 @@ export function migrate(db: Database) {
  CREATE TABLE seller_prompt_defaults(seller_id TEXT NOT NULL,mode TEXT NOT NULL,prompt_id TEXT NOT NULL,PRIMARY KEY(seller_id,mode));
  PRAGMA user_version=1;
  `);
-    db.exec(`
+    if (version < 2)
+      db.exec(`
  CREATE TABLE assets(id TEXT PRIMARY KEY,seller_id TEXT NOT NULL,mime TEXT NOT NULL,width INTEGER NOT NULL,height INTEGER NOT NULL,sha256 TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE image_jobs(id TEXT PRIMARY KEY,seller_id TEXT NOT NULL,data TEXT NOT NULL);
  CREATE TABLE app_credentials(seller_id TEXT PRIMARY KEY,encrypted BLOB NOT NULL);
  PRAGMA user_version=2;
+ `);
+    if (version < 3)
+      db.exec(`
+ CREATE TABLE seller_product_profiles(seller_id TEXT NOT NULL,store_id TEXT NOT NULL,marketplace TEXT NOT NULL,product_size TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL,PRIMARY KEY(seller_id,store_id,marketplace));
+ PRAGMA user_version=3;
  `);
   })();
 }

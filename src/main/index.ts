@@ -18,6 +18,7 @@ import { AssetStore } from './studio/assets';
 import { CredentialStore } from './studio/credentials';
 import { StudioJobs } from './studio/jobs';
 import { OpenAIStudioAdapter } from './studio/openai-adapter';
+import { ProductProfileStore } from './studio/profiles';
 import { dispatchStudio, studioErrorMessage } from './studio/ipc';
 import bundle from '../../resources/default-prompts.json';
 // An explicit data directory also lets automated smoke tests avoid touching user data.
@@ -47,6 +48,7 @@ app.whenReady().then(() => {
     },
   });
   const assets = new AssetStore(db, join(app.getPath('userData'), 'assets'));
+  const profiles = new ProductProfileStore(db);
   const credentials = new CredentialStore(
     db,
     {
@@ -72,6 +74,7 @@ app.whenReady().then(() => {
       return await dispatchStudio(
         {
           assets,
+          profiles,
           jobs,
           credentials,
           adapter,

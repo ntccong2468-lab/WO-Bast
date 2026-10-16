@@ -1,6 +1,7 @@
 import type { StudioJob } from '../../shared/studio-contracts';
 import { AssetThumb } from './SourceImages';
 import { studioMessages } from '../../shared/studio-messages';
+import { aspectRatios } from '../../shared/studio-contracts';
 export const stateLabels: Record<StudioJob['state'], string> = {
   queued: 'Chờ xác nhận chạy',
   generating: 'Đang tạo ảnh',
@@ -125,7 +126,9 @@ export function JobResult({
         <p>{job.snapshot.ids.map((id, i) => id + ' v' + job.snapshot.versions[i]).join(' · ')}</p>
         <pre>{job.snapshot.finalPrompt}</pre>
         <p className="muted">
-          {job.originalAssetIds.length} ảnh nguồn · {job.snapshot.aspectRatio}
+          {job.originalAssetIds.length} ảnh nguồn · Tỷ lệ {job.snapshot.aspectRatio} ·{' '}
+          {aspectRatios.find((item) => item.id === job.snapshot.aspectRatio)?.name ??
+            'Theo ảnh nguồn'}
         </p>
       </details>
     </article>

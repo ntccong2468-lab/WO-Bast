@@ -54,6 +54,26 @@ test('source selection and prompt preview work without a key; generate remains b
     true,
   );
 });
+
+test('creation form exposes only seller size and Vietnamese ratio choices including 9:16', async () => {
+  window.vnPochta = bridge();
+  render(<StudioPage seller="seller-a" selectedPromptId="hero_image" />);
+  await screen.findByText('Ảnh chính sản phẩm');
+  expect(screen.getByLabelText('Kích thước sản phẩm (Size)').getAttribute('placeholder')).toBe(
+    'Ví dụ: 48-56; 58-66',
+  );
+  const ratio = screen.getByLabelText('Tỷ lệ ảnh áp dụng chung') as HTMLSelectElement;
+  expect([...ratio.options].map((option) => option.value)).toContain('9:16');
+  for (const technical of [
+    'product_name',
+    'marketplace',
+    'category',
+    'aspect_ratio',
+    'language',
+    'verified_attributes',
+  ])
+    expect(screen.queryByDisplayValue(technical)).toBeNull();
+});
 test('password clears after submit and API check shows safe status', async () => {
   window.vnPochta = bridge();
   render(<ApiSettings seller="seller-a" />);

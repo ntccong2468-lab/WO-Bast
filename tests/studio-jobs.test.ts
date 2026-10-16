@@ -81,6 +81,75 @@ test('snapshot, generation, audit, manual review, output and seller isolation', 
     await x.cleanup();
   }
 });
+
+test('seller size is preserved in the prompt snapshot and 9:16 resolves to a non-stretched output', async () => {
+  const x = await setup();
+  try {
+    const [job] = x.jobs.create('seller-a', {
+      ...x.request,
+      productSize: '48-56; M; One Size',
+      aspectRatio: '9:16',
+    });
+    expect(job.snapshot.productSize).toBe('48-56; M; One Size');
+    expect(job.snapshot.values.product_size).toBe('48-56; M; One Size');
+    expect(job.snapshot.outputAspectRatio).toBe('9:16');
+    await x.jobs.run('seller-a', job.id);
+    const output = x.jobs.get('seller-a', job.id).outputAssetIds.at(-1)!;
+    expect([
+      x.assets.get('seller-a', output).width,
+      x.assets.get('seller-a', output).height,
+    ]).toEqual([9, 16]);
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('original ratio keeps the source geometry instead of snapping to a listed ratio', async () => {
+  const x = await setup();
+  try {
+    const [job] = x.jobs.create('seller-a', { ...x.request, aspectRatio: 'original' });
+    expect(job.snapshot.outputAspectRatio).toBe('original');
+    expect([job.snapshot.sourceWidth, job.snapshot.sourceHeight]).toEqual([12, 16]);
+  } finally {
+    await x.cleanup();
+  }
+});
+
+test('seller-approved Russian text is the only text composited onto generated output', async () => {
+  const x = await setup();
+  try {
+    const [job] = x.jobs.create('seller-a', {
+      ...x.request,
+      analysis: {
+        productTypeRu: 'рубашка',
+        colorsRu: ['белый'],
+        productNameRu: 'Рубашка',
+        descriptionRu: 'Белая рубашка',
+        observedAttributesRu: ['воротник'],
+        uncertainAttributesRu: ['состав не подтвержден'],
+        textProposals: [
+          {
+            assetIndex: 0,
+            role: 'hero',
+            enabled: true,
+            approved: true,
+            titleRu: 'Размеры',
+            bodyRu: '48-56',
+          },
+        ],
+      },
+    });
+    expect(job.snapshot.finalPrompt).toContain('Размеры');
+    await x.jobs.run('seller-a', job.id);
+    const output = await x.assets.read(
+      'seller-a',
+      x.jobs.get('seller-a', job.id).outputAssetIds.at(-1)!,
+    );
+    expect(output.equals(await x.assets.read('seller-a', x.request.assetIds[0]))).toBe(false);
+  } finally {
+    await x.cleanup();
+  }
+});
 test('audit failure keeps output and retries audit only; failed audits cannot be approved', async () => {
   const x = await setup();
   try {

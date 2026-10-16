@@ -101,3 +101,8 @@ gồm bộ cài, ZIP và SHA256. Có thể đặt `VN_POCHTA_ARTIFACT_DIR` cho c
 Workflow `.github/workflows/windows-release.yml` kiểm tra mã và xuất bộ cài khi đẩy tag `v*`;
 workflow cũng có thể chạy thủ công để tạo artifact. Tag tạo bản phát hành trong chính repo này.
 Bộ cài chưa ký số và chưa được kiểm thử cài đặt trên Windows thực tế.
+
+### Tạo ảnh và Size
+
+AI Studio chỉ hiển thị Size và lựa chọn tỷ lệ; các thuộc tính còn lại được phân tích từ ảnh nguồn.
+Tài liệu cập nhật nằm ở [docs/image-generation-ui-update.md](docs/image-generation-ui-update.md).

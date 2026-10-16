@@ -30,6 +30,7 @@ test('official SDK sends actual multipart bytes and structured original/output i
       expect(files).toHaveLength(1);
       expect(Buffer.from(await files[0].arrayBuffer())).toEqual(source);
       expect(form.get('model')).toBe('gpt-image-1');
+      expect(form.get('size')).toBe('1024x1536');
       return new Response(JSON.stringify({ data: [{ b64_json: output.toString('base64') }] }), {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -132,4 +133,61 @@ test('redirect responses and timeout fail once without forwarding credential or 
     throw new DOMException('secret', 'TimeoutError');
   });
   expect((await timeout.checkConnection()).errorCode).toBe('timeout');
+});
+
+test('vision analysis returns Russian proposals and separates observed from uncertain attributes', async () => {
+  const source = await sharp({
+    create: { width: 12, height: 16, channels: 3, background: 'white' },
+  })
+    .png()
+    .toBuffer();
+  const transport: typeof fetch = async (input, init) => {
+    const req = new Request(input as string, init);
+    expect(req.url).toMatch(/\/v1\/responses$/);
+    const body = await req.json();
+    expect(body.model).toBe('gpt-4.1-mini');
+    expect(body.input[0].content.some((part: any) => part.type === 'input_image')).toBe(true);
+    return new Response(
+      JSON.stringify({
+        object: 'response',
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            role: 'assistant',
+            status: 'completed',
+            content: [
+              {
+                type: 'output_text',
+                text: JSON.stringify({
+                  productTypeRu: 'рубашка',
+                  colorsRu: ['белый'],
+                  productNameRu: 'Рубашка',
+                  descriptionRu: 'Белая рубашка на фотографии',
+                  observedAttributesRu: ['белый цвет'],
+                  uncertainAttributesRu: ['состав ткани не подтвержден'],
+                  textProposals: [
+                    {
+                      assetIndex: 0,
+                      role: 'hero',
+                      enabled: false,
+                      approved: false,
+                      titleRu: '',
+                      bodyRu: '',
+                    },
+                  ],
+                }),
+                annotations: [],
+              },
+            ],
+          },
+        ],
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+  };
+  const result = await new OpenAIStudioAdapter(keys, 'seller-a', transport).analyze([source]);
+  expect(result.productNameRu).toBe('Рубашка');
+  expect(result.uncertainAttributesRu).toEqual(['состав ткани не подтвержден']);
+  expect(result.textProposals[0].enabled).toBe(false);
 });

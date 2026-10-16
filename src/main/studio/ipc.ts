@@ -5,8 +5,10 @@ import type { StudioJobs } from './jobs';
 import { requestSchema } from './jobs';
 import type { CredentialStore } from './credentials';
 import type { OpenAIStudioAdapter } from './openai-adapter';
+import type { ProductProfileStore } from './profiles';
 export interface StudioContext {
   assets: AssetStore;
+  profiles: ProductProfileStore;
   jobs: StudioJobs;
   credentials: CredentialStore;
   adapter: (seller: SellerId) => OpenAIStudioAdapter;
@@ -32,6 +34,16 @@ export async function dispatchStudio(
       return ctx.assets.preview(seller, id.parse(args[0]));
     case 'assets':
       return ctx.assets.list(seller);
+    case 'analyze': {
+      const assetIds = z.array(id).min(1).max(6).parse(args[0]);
+      const inputs = await Promise.all(assetIds.map((assetId) => ctx.assets.read(seller, assetId)));
+      const analysis = await ctx.adapter(seller).analyze(inputs);
+      return analysis;
+    }
+    case 'productProfile':
+      return ctx.profiles.get(seller);
+    case 'saveProductSize':
+      return ctx.profiles.save(seller, z.string().max(200).parse(args[0]));
     case 'thumbnail':
       return ctx.assets.thumbnail(seller, id.parse(args[0]));
     case 'prepare':

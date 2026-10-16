@@ -4,10 +4,11 @@ import type {
   Asset,
   CredentialStatus,
   CreateStudioRequest,
+  ImageAnalysis,
   PromptSnapshot,
   StudioJob,
 } from '../../shared/studio-contracts';
-import { variables, interpolate } from '../../shared/interpolation';
+import { aspectRatios } from '../../shared/studio-contracts';
 import { SourceImages } from './SourceImages';
 import { StudioHistory } from './StudioHistory';
 interface Props {
@@ -23,7 +24,14 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
     [defaults, setDefaults] = useState<Record<string, string>>({}),
     [ids, setIds] = useState<string[]>([]),
     [values, setValues] = useState<Record<string, string>>({}),
-    [ratio, setRatio] = useState<'3:4' | '2:3'>('3:4'),
+    [ratio, setRatio] = useState<import('../../shared/studio-contracts').AspectRatioId>('3:4'),
+    [taskRatios, setTaskRatios] = useState<
+      Record<string, import('../../shared/studio-contracts').AspectRatioId>
+    >({}),
+    [applyRatioToAll, setApplyRatioToAll] = useState(true),
+    [productSize, setProductSize] = useState(''),
+    [analysis, setAnalysis] = useState<ImageAnalysis | null>(null),
+    [analysisBusy, setAnalysisBusy] = useState(false),
     [batch, setBatch] = useState(false),
     [preview, setPreview] = useState<PromptSnapshot[]>([]),
     [jobs, setJobs] = useState<StudioJob[]>([]),
@@ -48,8 +56,9 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
       api.studio.list(),
       api.credentials.status(),
       api.defaults(),
+      api.studio.productProfile?.() ?? Promise.resolve({ productSize: '' }),
     ])
-      .then(([a, p, j, c, defs]) => {
+      .then(([a, p, j, c, defs, profile]) => {
         if (!alive.current) return;
         setAssets(a);
         const imagePrompts = p.filter((p) => p.category === 'image');
@@ -68,6 +77,7 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
         );
         setJobs(j);
         setCredential(c);
+        setProductSize(profile?.productSize ?? '');
       })
       .catch(() => {
         if (alive.current) setMessage('Không thể tải AI Studio.');
@@ -84,7 +94,15 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
   }, [seller]);
   useEffect(() => {
     setPreview([]);
-  }, [selected.join('|'), ids.join('|'), JSON.stringify(values), ratio]);
+  }, [
+    selected.join('|'),
+    ids.join('|'),
+    JSON.stringify(values),
+    ratio,
+    JSON.stringify(taskRatios),
+    productSize,
+    JSON.stringify(analysis),
+  ]);
   useEffect(() => {
     if (!jobs.some((j) => j.state === 'generating' || j.state === 'auditing') && !networkRunning)
       return;
@@ -116,8 +134,23 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
     assetIds: selected,
     promptIds: ids,
     values,
+    productSize,
     aspectRatio: ratio,
+    aspectRatios: applyRatioToAll ? undefined : taskRatios,
+    analysis: analysis ?? undefined,
   });
+  const analyzeSelected = async (assetIds: string[]) => {
+    if (!assetIds.length || !api.studio.analyze || !credential?.configured) return;
+    setAnalysisBusy(true);
+    try {
+      const result = await api.studio.analyze(assetIds);
+      if (alive.current) setAnalysis(result);
+    } catch (e) {
+      if (alive.current) setMessage(e instanceof Error ? e.message : 'Không thể phân tích ảnh.');
+    } finally {
+      if (alive.current) setAnalysisBusy(false);
+    }
+  };
   const runJobs = async (items: StudioJob[]) => {
     if (networkLock.current) return;
     networkLock.current = true;
@@ -150,6 +183,7 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
     )
       return;
     void work(async () => {
+      await api.studio.saveProductSize?.(productSize);
       const created = await api.studio.create(request());
       if (!alive.current) return;
       setPreview([]);
@@ -236,23 +270,31 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
           <SourceImages
             assets={assets}
             selected={selected}
-            busy={busy}
+            busy={busy || analysisBusy}
             onImport={() =>
               void work(async () => {
                 const imported = await api.studio.importImages();
                 if (!alive.current) return;
                 setAssets(await api.studio.assets());
-                if (alive.current) setSelected(imported.slice(0, 6).map((a) => a.id));
+                const importedIds = imported.slice(0, 6).map((a) => a.id);
+                if (alive.current) {
+                  setSelected(importedIds);
+                  setAnalysis(null);
+                }
+                await analyzeSelected(importedIds);
               })
             }
-            onToggle={(id) =>
-              setSelected(
-                selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id],
-              )
-            }
+            onToggle={(id) => {
+              const next = selected.includes(id)
+                ? selected.filter((x) => x !== id)
+                : [...selected, id];
+              setSelected(next);
+              setAnalysis(null);
+              void analyzeSelected(next);
+            }}
           />
           <section className="studio-panel">
-            <h2>2. Prompt và nội dung cuối</h2>
+            <h2>2. Cấu hình tạo ảnh và nội dung</h2>
             <label className="check">
               <input
                 type="checkbox"
@@ -302,36 +344,179 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
                 </label>
               )}
               <label>
-                Tỷ lệ ảnh xuất
+                Tỷ lệ ảnh áp dụng chung
                 <select
-                  aria-label="Tỷ lệ ảnh xuất"
+                  aria-label="Tỷ lệ ảnh áp dụng chung"
                   value={ratio}
                   onChange={(e) => setRatio(e.target.value as typeof ratio)}
                 >
-                  <option value="3:4">3:4 · thêm lề trắng, không cắt sản phẩm</option>
-                  <option value="2:3">2:3 · native 1024×1536</option>
+                  {aspectRatios.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.id} · {item.name} · {item.pixels} · {item.use}
+                    </option>
+                  ))}
                 </select>
               </label>
-              <div className="variable-grid">
-                {variables.map((key) => (
-                  <label key={key}>
-                    {key}
-                    <input
-                      value={values[key] ?? ''}
-                      onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-                    />
-                  </label>
-                ))}
+              {batch && (
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={applyRatioToAll}
+                    onChange={(e) => setApplyRatioToAll(e.target.checked)}
+                  />
+                  Áp dụng tỷ lệ này cho toàn bộ tác vụ
+                </label>
+              )}
+              {batch && !applyRatioToAll && (
+                <div className="prompt-options">
+                  {ids.map((id) => {
+                    const prompt = prompts.find((item) => item.id === id);
+                    return (
+                      <label key={id}>
+                        Tỷ lệ riêng cho {prompt?.name ?? 'tác vụ'}
+                        <select
+                          aria-label={`Tỷ lệ riêng cho ${prompt?.name ?? id}`}
+                          value={taskRatios[id] ?? ratio}
+                          onChange={(e) =>
+                            setTaskRatios({ ...taskRatios, [id]: e.target.value as typeof ratio })
+                          }
+                        >
+                          {aspectRatios.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.id} · {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <label>
+                Kích thước sản phẩm (Size)
+                <input
+                  aria-label="Kích thước sản phẩm (Size)"
+                  placeholder="Ví dụ: 48-56; 58-66"
+                  maxLength={200}
+                  value={productSize}
+                  onChange={(e) => setProductSize(e.target.value)}
+                />
+              </label>
+              {analysis && (
+                <section className="analysis-card" aria-label="Phân tích ảnh gốc">
+                  <h3>Phân tích ảnh gốc và đề xuất tiếng Nga</h3>
+                  <p>
+                    <strong>Sản phẩm:</strong> {analysis.productNameRu} · <strong>Loại:</strong>{' '}
+                    {analysis.productTypeRu}
+                  </p>
+                  <p>
+                    <strong>Mô tả tiếng Nga:</strong> {analysis.descriptionRu}
+                  </p>
+                  <p>
+                    <strong>Màu quan sát được:</strong>{' '}
+                    {analysis.colorsRu.join(', ') || 'Chưa xác định'}
+                  </p>
+                  <p>
+                    <strong>Đặc tính quan sát được:</strong>{' '}
+                    {analysis.observedAttributesRu.join('; ') || 'Chưa có'}
+                  </p>
+                  <p className="warning">
+                    <strong>Chưa xác minh:</strong>{' '}
+                    {analysis.uncertainAttributesRu.join('; ') || 'Không có đề xuất chưa xác minh'}
+                  </p>
+                  <h4>Chữ trên từng ảnh — seller bật, sửa và duyệt trước khi xuất</h4>
+                  {analysis.textProposals.map((proposal, index) => (
+                    <div
+                      className="text-proposal"
+                      key={`${proposal.assetIndex}-${proposal.role}-${index}`}
+                    >
+                      <strong>
+                        Ảnh {proposal.assetIndex + 1} ·{' '}
+                        {proposal.role === 'hero'
+                          ? 'Ảnh chính'
+                          : proposal.role === 'infographic'
+                            ? 'Infographic'
+                            : proposal.role === 'advertising'
+                              ? 'Quảng cáo'
+                              : 'Chi tiết'}
+                      </strong>
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={proposal.enabled}
+                          onChange={(e) =>
+                            setAnalysis({
+                              ...analysis,
+                              textProposals: analysis.textProposals.map((item, i) =>
+                                i === index ? { ...item, enabled: e.target.checked } : item,
+                              ),
+                            })
+                          }
+                        />{' '}
+                        Bật chữ
+                      </label>
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={proposal.approved}
+                          onChange={(e) =>
+                            setAnalysis({
+                              ...analysis,
+                              textProposals: analysis.textProposals.map((item, i) =>
+                                i === index ? { ...item, approved: e.target.checked } : item,
+                              ),
+                            })
+                          }
+                        />{' '}
+                        Đã duyệt nội dung
+                      </label>
+                      <input
+                        aria-label={`Tiêu đề tiếng Nga ảnh ${proposal.assetIndex + 1}`}
+                        value={proposal.titleRu}
+                        onChange={(e) =>
+                          setAnalysis({
+                            ...analysis,
+                            textProposals: analysis.textProposals.map((item, i) =>
+                              i === index ? { ...item, titleRu: e.target.value } : item,
+                            ),
+                          })
+                        }
+                      />
+                      <textarea
+                        aria-label={`Mô tả tiếng Nga ảnh ${proposal.assetIndex + 1}`}
+                        value={proposal.bodyRu}
+                        onChange={(e) =>
+                          setAnalysis({
+                            ...analysis,
+                            textProposals: analysis.textProposals.map((item, i) =>
+                              i === index ? { ...item, bodyRu: e.target.value } : item,
+                            ),
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
+                </section>
+              )}
+              <div className="actions">
+                <button
+                  type="button"
+                  disabled={busy || analysisBusy || !selected.length || !api.studio.analyze}
+                  onClick={() => void analyzeSelected(selected)}
+                >
+                  {analysisBusy ? 'Đang phân tích ảnh…' : 'Phân tích lại ảnh gốc'}
+                </button>
               </div>
               <p className="muted">
-                Giữ nguyên sản phẩm và chỉ dùng đặc tính đã xác minh. Infographic ở bước này chỉ tạo
-                nền; lớp chữ chỉnh sửa sẽ được bổ sung sau.
+                Hệ thống chỉ đưa đặc tính quan sát được vào prompt. Đặc tính chưa xác minh không
+                được tự thêm vào nội dung bán hàng.
               </p>
               <div className="actions">
                 <button
                   disabled={!selected.length || !ids.length}
                   onClick={() =>
                     void work(async () => {
+                      await api.studio.saveProductSize?.(productSize);
                       const result = await api.studio.prepare(request());
                       if (alive.current) setPreview(result);
                     })
