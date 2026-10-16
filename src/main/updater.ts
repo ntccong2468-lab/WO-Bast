@@ -1,5 +1,6 @@
 import { app, shell } from 'electron';
 import { createWriteStream } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { finished } from 'node:stream/promises';
@@ -199,6 +200,16 @@ export class Updater {
       await stat(this.info.localPath);
     } catch {
       throw new Error('Không tìm thấy tệp cập nhật đã tải. Hãy tải lại.');
+    }
+    if (process.platform === 'win32') {
+      const installer = spawn(this.info.localPath, [], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      installer.unref();
+      setTimeout(() => this.quit(), this.quitDelayMs);
+      return;
     }
     const openError = await shell.openPath(this.info.localPath);
     if (openError) throw new Error(`Không thể mở bộ cài: ${openError}`);

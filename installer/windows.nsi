@@ -1,6 +1,8 @@
 Unicode true
 !include "MUI2.nsh"
 !include "x64.nsh"
+!include "StrFunc.nsh"
+${Using:StrFunc} StrStr
 !ifndef APP_DIR
 !error "Pass /DAPP_DIR (Windows) or -DAPP_DIR (Linux)"
 !endif
@@ -37,6 +39,21 @@ Function CheckRunning
   StrCpy $1 0
   wait_for_app:
   FindWindow $0 "Chrome_WidgetWin_1" "VN ПОЧТА"
+  nsExec::ExecToStack '/TIMEOUT=5000 "$SYSDIR\tasklist.exe" /FI "IMAGENAME eq VN-Pochta.exe" /NH /FO CSV'
+  Pop $5
+  Pop $6
+  ${StrStr} $7 $5 "VN-Pochta.exe"
+  ${If} $7 == ""
+    ${StrStr} $7 $6 "VN-Pochta.exe"
+  ${EndIf}
+  ${If} $0 == 0
+    ${If} $7 == ""
+      Return
+    ${EndIf}
+  ${EndIf}
+  ${If} $0 == 0
+    StrCpy $0 1
+  ${EndIf}
   ${If} $0 == 0
     Return
   ${EndIf}

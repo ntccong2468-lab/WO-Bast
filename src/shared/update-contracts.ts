@@ -33,9 +33,10 @@ export interface UpdateBridge {
 }
 
 export const updateManifest: UpdateManifest = {
-  version: '0.2.2',
-  title: 'VN ПОЧТА 0.2.2',
+  version: '0.2.3',
+  title: 'VN ПОЧТА 0.2.3',
   notes: [
+    'Sửa lỗi ghi đè VN-Pochta.exe khi cập nhật từ ứng dụng đang chạy.',
     'Sửa lỗi bộ cài chặn cập nhật khi VN ПОЧТА vẫn đang đóng cửa sổ.',
     'Giao diện tạo ảnh được Việt hóa và tự lấy thông tin sản phẩm từ ảnh nguồn.',
     'Giữ lại ô Kích thước sản phẩm (Size), hỗ trợ nhiều khoảng size và lưu theo seller.',
@@ -43,8 +44,8 @@ export const updateManifest: UpdateManifest = {
     'Thêm đề xuất chữ tiếng Nga theo từng ảnh để seller xem, sửa và phê duyệt trước khi xuất.',
     'Bảo toàn prompt, ảnh nguồn và cấu hình đã lưu trong quy trình tạo ảnh.',
   ],
-  releaseUrl: 'https://github.com/ntccong2468-lab/WO-Bast/releases/tag/v0.2.2',
+  releaseUrl: 'https://github.com/ntccong2468-lab/WO-Bast/releases/tag/v0.2.3',
   installerUrl:
-    'https://github.com/ntccong2468-lab/WO-Bast/releases/download/v0.2.2/VN-Pochta-Setup-0.2.2-x64.exe',
-  installerName: 'VN-Pochta-Setup-0.2.2-x64.exe',
+    'https://github.com/ntccong2468-lab/WO-Bast/releases/download/v0.2.3/VN-Pochta-Setup-0.2.3-x64.exe',
+  installerName: 'VN-Pochta-Setup-0.2.3-x64.exe',
 };
