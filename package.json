@@ -14,7 +14,8 @@
     "test:e2e:cloud": "node scripts/verify-runtime.mjs",
     "format": "prettier --write src tests scripts *.ts *.json",
     "format:check": "prettier --check src tests scripts *.ts *.json",
-    "package:windows": "npm run build && node scripts/package-windows.mjs"
+    "package:windows": "npm run build && node scripts/package-windows.mjs",
+    "package:installer": "node scripts/package-installer.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

@@ -52,7 +52,7 @@ await run(
   process.platform === 'win32' ? 'npm.cmd' : 'npm',
   [
     'ci',
-    '--cache=/workspace/.vn-pochta-tools/npm',
+    `--cache=${process.env.npm_config_cache ?? '/tmp/vn-pochta-package-npm'}`,
     '--omit=dev',
     '--os=win32',
     '--cpu=x64',

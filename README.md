@@ -88,3 +88,16 @@ Nhập JSON tối đa 2 MiB, 100 prompt/lần; một mục sai khiến toàn b�
 Luồng API OpenAI đã có mã thật nhưng chưa kiểm chứng với khóa hợp lệ và ảnh thử do người dùng cho phép gửi. Các lần kiểm tra khóa trước triển khai nhận HTTP 401 invalid_api_key; không có tác vụ tạo ảnh thật nào được chạy trong kiểm thử tự động. Chỉ báo thành công sau kiểm chứng API/model/tài khoản hợp lệ. Các bước tiếp theo là nghiệm thu Windows, lớp chữ infographic và adapter marketplace theo category/cửa hàng.
 
 Chi tiết kiểm thử, quyết định triển khai và giới hạn tại `docs/ai-studio-validation.md`.
+
+### Bộ cài Windows
+
+Tải bộ cài `.exe` từ [GitHub Releases](https://github.com/ntccong2468-lab/WO-Bast/releases).
+Chạy bộ cài để thêm ứng dụng vào Start Menu/Desktop. Dữ liệu và khóa mã hóa được giữ lại khi gỡ cài đặt.
+
+Để đóng gói trên Linux, cài NSIS (`sudo apt-get install nsis`), chạy `npm ci`,
+`npm run package:windows` rồi `npm run package:installer`. Kết quả ở `release/`,
+gồm bộ cài, ZIP và SHA256. Có thể đặt `VN_POCHTA_ARTIFACT_DIR` cho cả hai bước để đổi thư mục đầu ra.
+
+Workflow `.github/workflows/windows-release.yml` kiểm tra mã và xuất bộ cài khi đẩy tag `v*`;
+workflow cũng có thể chạy thủ công để tạo artifact. Tag tạo bản phát hành trong chính repo này.
+Bộ cài chưa ký số và chưa được kiểm thử cài đặt trên Windows thực tế.
