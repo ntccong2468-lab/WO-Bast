@@ -15,10 +15,12 @@ export const stateLabels: Record<StudioJob['state'], string> = {
 export function JobResult({
   job,
   busy,
+  cancelBusy = busy,
   onAction,
 }: {
   job: StudioJob;
   busy: boolean;
+  cancelBusy?: boolean;
   onAction: (job: StudioJob, action: string) => void;
 }) {
   const report = job.qualityReport;
@@ -32,6 +34,14 @@ export function JobResult({
         </div>
         {job.outputAssetIds.length > 0 && <AssetThumb id={job.outputAssetIds.at(-1)!} />}
       </div>
+      <section className="job-originals">
+        <h3>Ảnh nguồn của tác vụ</h3>
+        <div className="reference-grid">
+          {job.originalAssetIds.map((id) => (
+            <AssetThumb key={id} id={id} />
+          ))}
+        </div>
+      </section>
       {job.errorCode && (
         <p className="warning">
           {studioMessages[job.errorCode] ?? 'Tác vụ gặp lỗi; chưa được duyệt.'}
@@ -80,7 +90,7 @@ export function JobResult({
             <button disabled={busy} onClick={() => onAction(job, 'run')}>
               Tiếp tục tác vụ
             </button>
-            <button disabled={busy} onClick={() => onAction(job, 'cancel')}>
+            <button disabled={cancelBusy} onClick={() => onAction(job, 'cancel')}>
               Dừng các ảnh chưa gửi
             </button>
           </>

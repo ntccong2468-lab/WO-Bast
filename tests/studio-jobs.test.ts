@@ -170,3 +170,16 @@ test('a claimed job is no longer cancellable while source files are being read',
     await x.cleanup();
   }
 });
+test('separate imports cannot bypass the selected-input 60 MiB limit', async () => {
+  const x = await setup();
+  try {
+    const small = await x.assets.read('seller-a', x.request.assetIds[0]);
+    const padded = Buffer.concat([small, Buffer.alloc(11 * 1024 * 1024)]);
+    const ids: string[] = [];
+    for (let i = 0; i < 6; i++) ids.push((await x.assets.storeOutput('seller-a', padded)).id);
+    expect(() => x.jobs.create('seller-a', { ...x.request, assetIds: ids })).toThrow();
+    expect(x.counts().generated).toBe(0);
+  } finally {
+    await x.cleanup();
+  }
+});

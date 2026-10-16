@@ -3,6 +3,7 @@ import type { SellerId } from '../../shared/contracts';
 import type { Asset } from '../../shared/studio-contracts';
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, open, writeFile, readFile, rename, rm } from 'node:fs/promises';
+import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 const LIMIT = 20 * 1024 * 1024;
@@ -120,6 +121,10 @@ export class AssetStore {
         )
         .all(seller) as { id: string }[]
     ).map((r) => this.get(seller, r.id));
+  }
+  byteLength(seller: SellerId, id: string) {
+    this.get(seller, id);
+    return statSync(join(this.root, id)).size;
   }
   async read(seller: SellerId, id: string) {
     const a = this.get(seller, id);

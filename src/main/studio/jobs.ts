@@ -73,7 +73,11 @@ export class StudioJobs {
       new Set(r.assetIds).size !== r.assetIds.length
     )
       throw new Error('Không chọn trùng ảnh hoặc prompt');
-    for (const id of r.assetIds) this.assets.get(seller, id);
+    if (
+      r.assetIds.reduce((total, id) => total + this.assets.byteLength(seller, id), 0) >
+      60 * 1024 * 1024
+    )
+      throw new Error('Tổng ảnh đã chọn vượt 60 MiB');
     const defaults = this.prompts.defaults(seller);
     const resolve = (mode: string) => this.prompts.get(seller, defaults[mode] ?? mode);
     const master = resolve('system_product_master'),
@@ -172,6 +176,8 @@ export class StudioJobs {
       let inputs: Buffer[];
       try {
         inputs = await Promise.all(job.originalAssetIds.map((id) => this.assets.read(seller, id)));
+        if (inputs.reduce((total, b) => total + b.length, 0) > 60 * 1024 * 1024)
+          throw new Error('input_too_large');
       } catch {
         this.update(seller, job, { state: 'failed', errorCode: 'disk_error' });
         return;

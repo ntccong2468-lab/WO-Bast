@@ -868,3 +868,25 @@ footer {
   top: 10px;
   left: 6px;
 }
+.reference-grid {
+  display: flex;
+  gap: 12px;
+  overflow: auto;
+  padding-bottom: 8px;
+}
+.reference-grid > .image-button {
+  width: 100px;
+  flex: 0 0 100px;
+}
+.reference-grid .image-button img {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+}
+.job-originals {
+  margin: 20px 0;
+}
+.job-originals h3 {
+  font-size: 12px;
+  color: #777;
+}

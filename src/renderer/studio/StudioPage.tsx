@@ -20,6 +20,7 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
   const [assets, setAssets] = useState<Asset[]>([]),
     [selected, setSelected] = useState<string[]>([]),
     [prompts, setPrompts] = useState<Prompt[]>([]),
+    [defaults, setDefaults] = useState<Record<string, string>>({}),
     [ids, setIds] = useState<string[]>([]),
     [values, setValues] = useState<Record<string, string>>({}),
     [ratio, setRatio] = useState<'3:4' | '2:3'>('3:4'),
@@ -41,17 +42,28 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
   useEffect(() => {
     alive.current = true;
     onBusyChange?.(true);
-    Promise.all([api.studio.assets(), api.list(), api.studio.list(), api.credentials.status()])
-      .then(([a, p, j, c]) => {
+    Promise.all([
+      api.studio.assets(),
+      api.list(),
+      api.studio.list(),
+      api.credentials.status(),
+      api.defaults(),
+    ])
+      .then(([a, p, j, c, defs]) => {
         if (!alive.current) return;
         setAssets(a);
         const imagePrompts = p.filter((p) => p.category === 'image');
         setPrompts(imagePrompts);
+        setDefaults(defs);
+        const preferred =
+          imagePrompts.find((p) => p.id === defs.hero_image) ??
+          imagePrompts.find((p) => p.id === 'hero_image') ??
+          imagePrompts[0];
         setIds(
           imagePrompts.some((p) => p.id === selectedPromptId)
             ? [selectedPromptId!]
-            : imagePrompts[0]
-              ? [imagePrompts[0].id]
+            : preferred
+              ? [preferred.id]
               : [],
         );
         setJobs(j);
@@ -113,6 +125,9 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
     try {
       for (const job of items) {
         if (!alive.current) break;
+        const latest = await api.studio.get(job.id);
+        if (!alive.current) break;
+        if (latest.state !== 'queued') continue;
         await api.studio.run(job.id);
         if (alive.current) await reloadJobs();
       }
@@ -183,6 +198,15 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
       await reloadJobs();
     });
   };
+  const batchPrompts = Array.from(
+    new Map(
+      prompts.map((p) => {
+        const preferred =
+          p.source === 'system' ? prompts.find((x) => x.id === defaults[p.mode]) : undefined;
+        return [preferred?.id ?? p.id, preferred ?? p] as const;
+      }),
+    ).values(),
+  );
   return (
     <div className="studio-page">
       <div className="page-heading">
@@ -244,7 +268,7 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
             <fieldset disabled={busy}>
               {batch ? (
                 <div className="prompt-options">
-                  {prompts.map((p) => (
+                  {batchPrompts.map((p) => (
                     <label key={p.id} className="check">
                       <input
                         type="checkbox"
@@ -338,7 +362,12 @@ export function StudioPage({ seller, selectedPromptId, historyOnly = false, onBu
           </section>
         </>
       )}
-      <StudioHistory jobs={jobs} busy={busy || networkRunning} onAction={action} />
+      <StudioHistory
+        jobs={jobs}
+        busy={busy || networkRunning}
+        cancelBusy={busy}
+        onAction={action}
+      />
     </div>
   );
 }

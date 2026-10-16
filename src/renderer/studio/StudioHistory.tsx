@@ -3,10 +3,12 @@ import { JobResult } from './JobResult';
 export function StudioHistory({
   jobs,
   busy,
+  cancelBusy,
   onAction,
 }: {
   jobs: StudioJob[];
   busy: boolean;
+  cancelBusy?: boolean;
   onAction: (job: StudioJob, action: string) => void;
 }) {
   return (
@@ -15,7 +17,15 @@ export function StudioHistory({
       {!jobs.length ? (
         <p className="empty">Chưa có tác vụ ảnh cho seller này.</p>
       ) : (
-        jobs.map((job) => <JobResult key={job.id} job={job} busy={busy} onAction={onAction} />)
+        jobs.map((job) => (
+          <JobResult
+            key={job.id}
+            job={job}
+            busy={busy}
+            cancelBusy={cancelBusy}
+            onAction={onAction}
+          />
+        ))
       )}
     </section>
   );
