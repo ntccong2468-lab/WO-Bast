@@ -95,7 +95,7 @@ test('favorite toggling does not discard an unsaved draft', async () => {
     'Unsaved favorite draft',
   );
 });
-test('late seller A initialization never overwrites seller B view', async () => {
+test('startup locks editing until ready, then seller B sees no seller A data', async () => {
   const originalList = window.vnPochta.list;
   let release: (value: Awaited<ReturnType<typeof originalList>>) => void = () => {};
   let started = false;
@@ -123,9 +123,16 @@ test('late seller A initialization never overwrites seller B view', async () => 
   };
   render(<App />);
   await waitFor(() => expect(started).toBe(true));
+  expect(
+    (screen.getByLabelText('Nội dung prompt').closest('fieldset') as HTMLFieldSetElement).disabled,
+  ).toBe(true);
+  expect((screen.getByLabelText('Seller hiện hành') as HTMLSelectElement).disabled).toBe(true);
+  release(captured);
+  await waitFor(() =>
+    expect((screen.getByLabelText('Seller hiện hành') as HTMLSelectElement).disabled).toBe(false),
+  );
   fireEvent.change(screen.getByLabelText('Seller hiện hành'), { target: { value: 'seller-b' } });
   await screen.findByRole('button', { name: /Ảnh chính sản phẩm/ });
-  release(captured);
   await waitFor(() => expect(session.seller).toBe('seller-b'));
   expect(screen.queryByText('A private title')).toBeNull();
 });
@@ -140,4 +147,32 @@ test('category, source and favorite filters compose', async () => {
   fireEvent.change(screen.getByLabelText('Nguồn'), { target: { value: 'system' } });
   fireEvent.click(screen.getByLabelText('Yêu thích'));
   expect(screen.getByText('Không tìm thấy prompt.')).toBeTruthy();
+});
+
+test('pending JSON reads lock seller and editor so imports stay with their initiating seller', async () => {
+  render(<App />);
+  await screen.findByRole('button', { name: /Ảnh chính sản phẩm/ });
+  await waitFor(() => expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('false'));
+  let release: (value: string) => void = () => {};
+  const file = new File(['placeholder'], 'prompts.json', { type: 'application/json' });
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        release = resolve;
+      }),
+  });
+  fireEvent.change(screen.getByLabelText('Tệp JSON'), { target: { files: [file] } });
+  await waitFor(() =>
+    expect((screen.getByLabelText('Seller hiện hành') as HTMLSelectElement).disabled).toBe(true),
+  );
+  expect(
+    (screen.getByLabelText('Nội dung prompt').closest('fieldset') as HTMLFieldSetElement).disabled,
+  ).toBe(true);
+  fireEvent.change(screen.getByLabelText('Seller hiện hành'), { target: { value: 'seller-b' } });
+  release(JSON.stringify(bundle));
+  await screen.findByText('Đã nhập 9 prompt cá nhân.');
+  const service = new PromptService(db);
+  expect(session.seller).toBe('seller-a');
+  expect(service.list('seller-a')).toHaveLength(18);
+  expect(service.list('seller-b')).toHaveLength(9);
 });

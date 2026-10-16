@@ -13,8 +13,7 @@ interface Props extends EditorProps {
   prompts: Prompt[];
   onSelect: (p: Prompt) => void;
   onNew: () => void;
-  onImport: (json: string) => void;
-  onError: (message: string) => void;
+  onImport: (file: File) => void;
 }
 export function PromptLibrary(props: Props) {
   const [search, setSearch] = useState(''),
@@ -51,22 +50,14 @@ export function PromptLibrary(props: Props) {
           <input
             ref={file}
             type="file"
+            disabled={props.busy}
             accept=".json,application/json"
             hidden
             aria-label="Tệp JSON"
-            onChange={async (e) => {
+            onChange={(e) => {
               const selected = e.target.files?.[0];
               e.target.value = '';
-              if (!selected) return;
-              if (selected.size > 2 * 1024 * 1024) {
-                props.onError('JSON tối đa 2 MiB');
-                return;
-              }
-              try {
-                props.onImport(await selected.text());
-              } catch {
-                props.onError('Không thể đọc tệp JSON');
-              }
+              if (selected) props.onImport(selected);
             }}
           />
         </div>

@@ -23,7 +23,7 @@ export function App() {
     [base, setBase] = useState<PromptInput>(blank),
     [versions, setVersions] = useState<PromptVersion[]>([]),
     [defaults, setDefaults] = useState<Record<string, string>>({}),
-    [busy, setBusy] = useState(false),
+    [busy, setBusy] = useState(true),
     [notice, setNotice] = useState(''),
     [error, setError] = useState(''),
     [studio, setStudio] = useState<Prompt | null>(null);
@@ -55,7 +55,12 @@ export function App() {
         const list = await api.list();
         if (token === epoch.current) await load(list[0] ?? null);
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => {
+        if (token === epoch.current) setError(String(e));
+      })
+      .finally(() => {
+        if (token === epoch.current) setBusy(false);
+      });
     return () => {
       epoch.current++;
     };
@@ -266,15 +271,23 @@ export function App() {
               onAction={action}
               onSelect={select}
               onNew={() => select(null)}
-              onImport={(json) => {
+              onImport={(file) => {
                 if (!leave()) return;
                 void run(async () => {
+                  const token = epoch.current;
+                  if (file.size > 2 * 1024 * 1024) throw new Error('JSON tối đa 2 MiB');
+                  let json: string;
+                  try {
+                    json = await file.text();
+                  } catch {
+                    throw new Error('Không thể đọc tệp JSON');
+                  }
+                  if (token !== epoch.current) return;
                   const imported = await api.importJson(json);
                   await load(imported[0]);
                   setNotice(`Đã nhập ${imported.length} prompt cá nhân.`);
                 });
               }}
-              onError={setError}
             />
           ) : (
             <section className="integration-page">
