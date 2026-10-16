@@ -25,7 +25,10 @@ interface UpdaterOptions {
   manifest?: UpdateManifest;
   openExternal?: OpenExternal;
   quit?: () => void;
+  quitDelayMs?: number;
 }
+
+const RELEASE_API_URL = 'https://api.github.com/repos/ntccong2468-lab/WO-Bast/releases/latest';
 
 function responseLength(response: IncomingMessage): number | null {
   const header = response.headers['content-length'];
@@ -34,11 +37,71 @@ function responseLength(response: IncomingMessage): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function requestResponse(url: string): Promise<IncomingMessage> {
+function requestResponse(url: string, timeoutMs = 8000): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
     const request = get(url, { headers: { 'User-Agent': 'VN-Pochta-Updater/0.2' } }, resolve);
     request.once('error', reject);
+    request.setTimeout(timeoutMs, () => {
+      request.destroy(new Error('Hết thời gian kết nối máy chủ cập nhật.'));
+    });
   });
+}
+
+async function readRelease(): Promise<UpdateManifest | null> {
+  const response = await requestResponse(RELEASE_API_URL);
+  if ((response.statusCode ?? 0) !== 200) {
+    response.resume();
+    return null;
+  }
+  const chunks: Buffer[] = [];
+  for await (const chunk of response) chunks.push(Buffer.from(chunk));
+  let value: unknown;
+  try {
+    value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== 'object') return null;
+  const release = value as {
+    tag_name?: unknown;
+    name?: unknown;
+    html_url?: unknown;
+    body?: unknown;
+    assets?: unknown;
+    draft?: unknown;
+    prerelease?: unknown;
+  };
+  if (release.draft || release.prerelease || typeof release.tag_name !== 'string') return null;
+  const version = release.tag_name.replace(/^v/, '');
+  if (!/^\d+\.\d+\.\d+$/.test(version)) return null;
+  const assets = Array.isArray(release.assets) ? release.assets : [];
+  const installer = assets.find(
+    (asset): asset is { name: string; browser_download_url: string } =>
+      !!asset &&
+      typeof asset === 'object' &&
+      typeof (asset as { name?: unknown }).name === 'string' &&
+      (asset as { name: string }).name === `VN-Pochta-Setup-${version}-x64.exe` &&
+      typeof (asset as { browser_download_url?: unknown }).browser_download_url === 'string',
+  );
+  if (!installer || typeof release.html_url !== 'string') return null;
+  return {
+    version,
+    title:
+      typeof release.name === 'string' && release.name.trim()
+        ? release.name
+        : `VN ПОЧТА ${version}`,
+    notes:
+      typeof release.body === 'string' && release.body.trim()
+        ? release.body
+            .split(/\r?\n/)
+            .map((line) => line.replace(/^\s*[-*]\s*/, '').trim())
+            .filter(Boolean)
+            .slice(0, 8)
+        : [...updateManifest.notes],
+    releaseUrl: release.html_url,
+    installerUrl: installer.browser_download_url,
+    installerName: installer.name,
+  };
 }
 
 async function downloadFile(
@@ -84,12 +147,13 @@ async function downloadFile(
 }
 
 export class Updater {
-  private readonly manifest: UpdateManifest;
   private readonly listeners = new Set<ProgressListener>();
   private readonly currentVersion: string;
   private readonly updatesDir: string;
   private readonly openExternal: OpenExternal;
   private readonly quit: () => void;
+  private readonly quitDelayMs: number;
+  private manifest: UpdateManifest;
   private info: UpdateInfo;
   private downloadPromise: Promise<UpdateInfo> | null = null;
 
@@ -99,6 +163,7 @@ export class Updater {
     this.manifest = options.manifest ?? updateManifest;
     this.openExternal = options.openExternal ?? ((url) => shell.openExternal(url).then(() => {}));
     this.quit = options.quit ?? (() => app.quit());
+    this.quitDelayMs = options.quitDelayMs ?? 1200;
     this.info = this.makeInfo('idle');
   }
 
@@ -108,6 +173,12 @@ export class Updater {
   }
 
   async check(): Promise<UpdateInfo> {
+    try {
+      const remote = await readRelease();
+      if (remote) this.manifest = remote;
+    } catch {
+      // The embedded manifest keeps the update center useful when GitHub is unavailable.
+    }
     const available = compareVersions(this.manifest.version, this.currentVersion) > 0;
     this.info = this.makeInfo(available ? 'available' : 'idle', available);
     return this.info;
@@ -131,7 +202,7 @@ export class Updater {
     }
     const openError = await shell.openPath(this.info.localPath);
     if (openError) throw new Error(`Không thể mở bộ cài: ${openError}`);
-    this.quit();
+    setTimeout(() => this.quit(), this.quitDelayMs);
   }
 
   async openRelease(): Promise<void> {

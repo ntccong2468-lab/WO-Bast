@@ -34,12 +34,22 @@ Function .onInit
   ${EndIf}
 FunctionEnd
 Function CheckRunning
-  retry:
+  StrCpy $1 0
+  wait_for_app:
   FindWindow $0 "Chrome_WidgetWin_1" "VN ПОЧТА"
-  ${If} $0 != 0
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Please close VN ПОЧТА before continuing." IDRETRY retry
+  ${If} $0 == 0
+    Return
+  ${EndIf}
+  ${If} $1 >= 40
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Hãy đóng VN ПОЧТА để tiếp tục cài đặt." IDRETRY retry_wait
     Abort
   ${EndIf}
+  Sleep 500
+  IntOp $1 $1 + 1
+  Goto wait_for_app
+  retry_wait:
+  StrCpy $1 0
+  Goto wait_for_app
 FunctionEnd
 Section "VN ПОЧТА"
   Call CheckRunning

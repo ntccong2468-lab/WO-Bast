@@ -1,5 +1,9 @@
 const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
-const ALLOWED_UPDATE_HOSTS = new Set(['github.com', 'release-assets.githubusercontent.com']);
+const ALLOWED_UPDATE_HOSTS = new Set([
+  'api.github.com',
+  'github.com',
+  'release-assets.githubusercontent.com',
+]);
 
 export function compareVersions(left: string, right: string): number {
   const a = left.match(VERSION_PATTERN);

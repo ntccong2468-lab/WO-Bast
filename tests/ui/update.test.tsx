@@ -12,16 +12,16 @@ afterEach(() => {
 function info(overrides: Partial<UpdateInfo> = {}): UpdateInfo {
   return {
     currentVersion: '0.2.0',
-    latestVersion: '0.2.1',
+    latestVersion: '0.2.2',
     available: true,
-    title: 'VN ПОЧТА 0.2.1',
+    title: 'VN ПОЧТА 0.2.2',
     notes: [
       'Xóa trường kỹ thuật khỏi giao diện tạo ảnh.',
       'Bổ sung tỷ lệ 9:16 và tải ảnh không biến dạng.',
     ],
-    releaseUrl: 'https://github.com/ntccong2468-lab/WO-Bast/releases/tag/v0.2.1',
+    releaseUrl: 'https://github.com/ntccong2468-lab/WO-Bast/releases/tag/v0.2.2',
     installerUrl:
-      'https://github.com/ntccong2468-lab/WO-Bast/releases/download/v0.2.1/VN-Pochta-Setup-0.2.1-x64.exe',
+      'https://github.com/ntccong2468-lab/WO-Bast/releases/download/v0.2.2/VN-Pochta-Setup-0.2.2-x64.exe',
     state: 'idle',
     downloadedBytes: 0,
     totalBytes: 10 * 1024 * 1024,
@@ -57,7 +57,7 @@ test('shows new release notes and downloads with a progress state', async () => 
   const api = installBridge(info());
   render(<UpdateBanner />);
 
-  expect(await screen.findByText('Có bản cập nhật mới: VN ПОЧТА 0.2.1')).toBeTruthy();
+  expect(await screen.findByText('Có bản cập nhật mới: VN ПОЧТА 0.2.2')).toBeTruthy();
   expect(screen.getByText(/Xóa trường kỹ thuật/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Tải bản cập nhật' }));
   await waitFor(() => expect(api.download).toHaveBeenCalledTimes(1));

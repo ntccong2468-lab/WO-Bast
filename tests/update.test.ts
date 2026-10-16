@@ -21,6 +21,9 @@ describe('update helpers', () => {
       isAllowedUpdateUrl('http://github.com/ntccong2468-lab/WO-Bast/releases/tag/v0.2.1'),
     ).toBe(false);
     expect(isAllowedUpdateUrl('https://example.com/VN-Pochta-Setup.exe')).toBe(false);
+    expect(
+      isAllowedUpdateUrl('https://api.github.com/repos/ntccong2468-lab/WO-Bast/releases/latest'),
+    ).toBe(true);
   });
 
   test('formats download progress for Vietnamese UI', () => {
