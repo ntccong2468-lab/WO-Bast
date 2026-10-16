@@ -1,25 +1,175 @@
-import type {Database} from 'better-sqlite3';
-import {randomUUID} from 'node:crypto';
-import {z} from 'zod';
-import type {Prompt,PromptInput,PromptVersion,SellerId} from '../shared/contracts';
-export const inputSchema=z.object({name:z.string().trim().min(1).max(200),nameRu:z.string().max(200),description:z.string().max(2000),category:z.enum(['system','image','quality']),body:z.string().min(1).max(50000),tags:z.array(z.string().max(80)).max(30),group:z.string().max(100),mode:z.string().max(100)});
-interface Row{id:string;seller_id?:string;system_prompt_id?:string|null;version:number;data:string;updated_at:string}
-export class PromptService{
- constructor(private db:Database){}
- private seller(s:SellerId){if(s!=='seller-a'&&s!=='seller-b')throw new Error('Seller không hợp lệ')}
- private row(s:SellerId,id:string):Row{this.seller(s);const row=this.db.prepare('SELECT * FROM seller_prompts WHERE seller_id=? AND id=?').get(s,id)??this.db.prepare('SELECT * FROM system_prompts WHERE id=?').get(id);if(!row)throw new Error('Không tìm thấy prompt hoặc không có quyền');return row as Row}
- get(s:SellerId,id:string):Prompt{const r=this.row(s,id);const pref=this.db.prepare('SELECT * FROM seller_prompt_preferences WHERE seller_id=? AND prompt_id=?').get(s,id) as {is_favorite:number;last_used_at:string|null}|undefined;return {...JSON.parse(r.data),id:r.id,systemPromptId:r.seller_id?r.system_prompt_id??null:r.id,source:r.seller_id?'seller':'system',version:r.version,updatedAt:r.updated_at,isFavorite:!!pref?.is_favorite,lastUsedAt:pref?.last_used_at??null}}
- list(s:SellerId):Prompt[]{this.seller(s);const rows=this.db.prepare('SELECT id FROM system_prompts UNION ALL SELECT id FROM seller_prompts WHERE seller_id=?').all(s) as {id:string}[];return rows.map(r=>this.get(s,r.id))}
- private write(s:SellerId,id:string,input:PromptInput,systemId:string|null,version:number){const data=JSON.stringify(inputSchema.parse(input));const now=new Date().toISOString();this.db.prepare('INSERT INTO seller_prompts(id,seller_id,system_prompt_id,version,data,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,data=excluded.data,updated_at=excluded.updated_at').run(id,s,systemId,version,data,now);this.db.prepare('INSERT INTO prompt_versions(prompt_id,seller_id,version,data,created_at) VALUES(?,?,?,?,?)').run(id,s,version,data,now);return this.get(s,id)}
- create(s:SellerId,input:PromptInput):Prompt{this.seller(s);return this.db.transaction(()=>this.write(s,randomUUID(),input,null,1))()}
- save(s:SellerId,id:string,input:PromptInput):Prompt{return this.db.transaction(()=>{const p=this.get(s,id);if(p.source==='system'){const override=this.db.prepare('SELECT id FROM seller_prompts WHERE seller_id=? AND system_prompt_id=?').get(s,id) as {id:string}|undefined;if(override)return this.save(s,override.id,input);return this.write(s,randomUUID(),input,id,1)}return this.write(s,p.id,input,p.systemPromptId,p.version+1)})()}
- clone(s:SellerId,id:string){const p=this.get(s,id);return this.create(s,{...p,name:(p.name+' (bản sao)').slice(0,200)})}
- remove(s:SellerId,id:string){this.db.transaction(()=>{if(this.get(s,id).source==='system')throw new Error('Không thể xóa prompt hệ thống');this.db.prepare('DELETE FROM seller_prompt_defaults WHERE seller_id=? AND prompt_id=?').run(s,id);this.db.prepare('DELETE FROM seller_prompt_preferences WHERE seller_id=? AND prompt_id=?').run(s,id);this.db.prepare('DELETE FROM seller_prompts WHERE seller_id=? AND id=?').run(s,id)})()}
- versions(s:SellerId,id:string):PromptVersion[]{this.get(s,id);return (this.db.prepare('SELECT * FROM prompt_versions WHERE seller_id=? AND prompt_id=? ORDER BY version DESC').all(s,id) as {version:number;data:string;created_at:string}[]).map(r=>({version:r.version,snapshot:JSON.parse(r.data),editedBy:s,createdAt:r.created_at}))}
- restore(s:SellerId,id:string,version:number){const v=this.versions(s,id).find(v=>v.version===version);if(!v)throw new Error('Phiên bản không tồn tại');return this.save(s,id,v.snapshot)}
- reset(s:SellerId,id:string){const p=this.get(s,id);if(p.source!=='seller'||!p.systemPromptId)throw new Error('Prompt không có bản mặc định');return this.save(s,id,this.get(s,p.systemPromptId))}
- favorite(s:SellerId,id:string,value:boolean){this.get(s,id);this.db.prepare('INSERT INTO seller_prompt_preferences(seller_id,prompt_id,is_favorite) VALUES(?,?,?) ON CONFLICT(seller_id,prompt_id) DO UPDATE SET is_favorite=excluded.is_favorite').run(s,id,value?1:0)}
- markUsed(s:SellerId,id:string){this.get(s,id);this.db.prepare('INSERT INTO seller_prompt_preferences(seller_id,prompt_id,last_used_at) VALUES(?,?,?) ON CONFLICT(seller_id,prompt_id) DO UPDATE SET last_used_at=excluded.last_used_at').run(s,id,new Date().toISOString())}
- setDefault(s:SellerId,mode:string,id:string){this.get(s,id);z.string().trim().min(1).max(100).parse(mode);this.db.prepare('INSERT INTO seller_prompt_defaults(seller_id,mode,prompt_id) VALUES(?,?,?) ON CONFLICT(seller_id,mode) DO UPDATE SET prompt_id=excluded.prompt_id').run(s,mode,id)}
- defaults(s:SellerId):Record<string,string>{this.seller(s);return Object.fromEntries((this.db.prepare('SELECT mode,prompt_id FROM seller_prompt_defaults WHERE seller_id=?').all(s) as {mode:string;prompt_id:string}[]).map(r=>[r.mode,r.prompt_id]))}
+import type { Database } from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import type { Prompt, PromptInput, PromptVersion, SellerId } from '../shared/contracts';
+export const inputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  nameRu: z.string().max(200),
+  description: z.string().max(2000),
+  category: z.enum(['system', 'image', 'quality']),
+  body: z.string().min(1).max(50000),
+  tags: z.array(z.string().max(80)).max(30),
+  group: z.string().max(100),
+  mode: z.string().max(100),
+});
+interface Row {
+  id: string;
+  seller_id?: string;
+  system_prompt_id?: string | null;
+  version: number;
+  data: string;
+  updated_at: string;
+}
+export class PromptService {
+  constructor(private db: Database) {}
+  private seller(s: SellerId) {
+    if (s !== 'seller-a' && s !== 'seller-b') throw new Error('Seller không hợp lệ');
+  }
+  private row(s: SellerId, id: string): Row {
+    this.seller(s);
+    const row =
+      this.db.prepare('SELECT * FROM seller_prompts WHERE seller_id=? AND id=?').get(s, id) ??
+      this.db.prepare('SELECT * FROM system_prompts WHERE id=?').get(id);
+    if (!row) throw new Error('Không tìm thấy prompt hoặc không có quyền');
+    return row as Row;
+  }
+  get(s: SellerId, id: string): Prompt {
+    const r = this.row(s, id);
+    const pref = this.db
+      .prepare('SELECT * FROM seller_prompt_preferences WHERE seller_id=? AND prompt_id=?')
+      .get(s, id) as { is_favorite: number; last_used_at: string | null } | undefined;
+    return {
+      ...JSON.parse(r.data),
+      id: r.id,
+      systemPromptId: r.seller_id ? (r.system_prompt_id ?? null) : r.id,
+      source: r.seller_id ? 'seller' : 'system',
+      version: r.version,
+      updatedAt: r.updated_at,
+      isFavorite: !!pref?.is_favorite,
+      lastUsedAt: pref?.last_used_at ?? null,
+    };
+  }
+  list(s: SellerId): Prompt[] {
+    this.seller(s);
+    const rows = this.db
+      .prepare(
+        'SELECT id FROM system_prompts UNION ALL SELECT id FROM seller_prompts WHERE seller_id=?',
+      )
+      .all(s) as { id: string }[];
+    return rows.map((r) => this.get(s, r.id));
+  }
+  private write(
+    s: SellerId,
+    id: string,
+    input: PromptInput,
+    systemId: string | null,
+    version: number,
+  ) {
+    const data = JSON.stringify(inputSchema.parse(input));
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        'INSERT INTO seller_prompts(id,seller_id,system_prompt_id,version,data,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,data=excluded.data,updated_at=excluded.updated_at',
+      )
+      .run(id, s, systemId, version, data, now);
+    this.db
+      .prepare(
+        'INSERT INTO prompt_versions(prompt_id,seller_id,version,data,created_at) VALUES(?,?,?,?,?)',
+      )
+      .run(id, s, version, data, now);
+    return this.get(s, id);
+  }
+  create(s: SellerId, input: PromptInput): Prompt {
+    this.seller(s);
+    return this.db.transaction(() => this.write(s, randomUUID(), input, null, 1))();
+  }
+  save(s: SellerId, id: string, input: PromptInput): Prompt {
+    return this.db.transaction(() => {
+      const p = this.get(s, id);
+      if (p.source === 'system') {
+        const override = this.db
+          .prepare('SELECT id FROM seller_prompts WHERE seller_id=? AND system_prompt_id=?')
+          .get(s, id) as { id: string } | undefined;
+        if (override) return this.save(s, override.id, input);
+        return this.write(s, randomUUID(), input, id, 1);
+      }
+      return this.write(s, p.id, input, p.systemPromptId, p.version + 1);
+    })();
+  }
+  clone(s: SellerId, id: string) {
+    const p = this.get(s, id);
+    return this.create(s, { ...p, name: (p.name + ' (bản sao)').slice(0, 200) });
+  }
+  remove(s: SellerId, id: string) {
+    this.db.transaction(() => {
+      if (this.get(s, id).source === 'system') throw new Error('Không thể xóa prompt hệ thống');
+      this.db
+        .prepare('DELETE FROM seller_prompt_defaults WHERE seller_id=? AND prompt_id=?')
+        .run(s, id);
+      this.db
+        .prepare('DELETE FROM seller_prompt_preferences WHERE seller_id=? AND prompt_id=?')
+        .run(s, id);
+      this.db.prepare('DELETE FROM seller_prompts WHERE seller_id=? AND id=?').run(s, id);
+    })();
+  }
+  versions(s: SellerId, id: string): PromptVersion[] {
+    this.get(s, id);
+    return (
+      this.db
+        .prepare(
+          'SELECT * FROM prompt_versions WHERE seller_id=? AND prompt_id=? ORDER BY version DESC',
+        )
+        .all(s, id) as { version: number; data: string; created_at: string }[]
+    ).map((r) => ({
+      version: r.version,
+      snapshot: JSON.parse(r.data),
+      editedBy: s,
+      createdAt: r.created_at,
+    }));
+  }
+  restore(s: SellerId, id: string, version: number) {
+    const v = this.versions(s, id).find((v) => v.version === version);
+    if (!v) throw new Error('Phiên bản không tồn tại');
+    return this.save(s, id, v.snapshot);
+  }
+  reset(s: SellerId, id: string) {
+    const p = this.get(s, id);
+    if (p.source !== 'seller' || !p.systemPromptId) throw new Error('Prompt không có bản mặc định');
+    return this.save(s, id, this.get(s, p.systemPromptId));
+  }
+  favorite(s: SellerId, id: string, value: boolean) {
+    this.get(s, id);
+    this.db
+      .prepare(
+        'INSERT INTO seller_prompt_preferences(seller_id,prompt_id,is_favorite) VALUES(?,?,?) ON CONFLICT(seller_id,prompt_id) DO UPDATE SET is_favorite=excluded.is_favorite',
+      )
+      .run(s, id, value ? 1 : 0);
+  }
+  markUsed(s: SellerId, id: string) {
+    this.get(s, id);
+    this.db
+      .prepare(
+        'INSERT INTO seller_prompt_preferences(seller_id,prompt_id,last_used_at) VALUES(?,?,?) ON CONFLICT(seller_id,prompt_id) DO UPDATE SET last_used_at=excluded.last_used_at',
+      )
+      .run(s, id, new Date().toISOString());
+  }
+  setDefault(s: SellerId, mode: string, id: string) {
+    this.get(s, id);
+    z.string().trim().min(1).max(100).parse(mode);
+    this.db
+      .prepare(
+        'INSERT INTO seller_prompt_defaults(seller_id,mode,prompt_id) VALUES(?,?,?) ON CONFLICT(seller_id,mode) DO UPDATE SET prompt_id=excluded.prompt_id',
+      )
+      .run(s, mode, id);
+  }
+  defaults(s: SellerId): Record<string, string> {
+    this.seller(s);
+    return Object.fromEntries(
+      (
+        this.db
+          .prepare('SELECT mode,prompt_id FROM seller_prompt_defaults WHERE seller_id=?')
+          .all(s) as { mode: string; prompt_id: string }[]
+      ).map((r) => [r.mode, r.prompt_id]),
+    );
+  }
 }

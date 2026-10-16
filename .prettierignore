@@ -1,0 +1,5 @@
+node_modules
+dist
+test-results
+resources/default-prompts.json
+package-lock.json
