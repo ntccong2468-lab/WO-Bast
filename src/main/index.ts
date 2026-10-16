@@ -5,6 +5,7 @@ import {
   safeStorage,
   dialog,
   session as electronSession,
+  shell,
 } from 'electron';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
@@ -20,6 +21,7 @@ import { StudioJobs } from './studio/jobs';
 import { OpenAIStudioAdapter } from './studio/openai-adapter';
 import { ProductProfileStore } from './studio/profiles';
 import { dispatchStudio, studioErrorMessage } from './studio/ipc';
+import { Updater } from './updater';
 import bundle from '../../resources/default-prompts.json';
 // An explicit data directory also lets automated smoke tests avoid touching user data.
 if (process.env.VN_POCHTA_DATA_DIR) app.setPath('userData', process.env.VN_POCHTA_DATA_DIR);
@@ -64,6 +66,39 @@ app.whenReady().then(() => {
     new OpenAIStudioAdapter(credentials, seller);
   const jobs = new StudioJobs(db, service, assets, adapter);
   jobs.recover();
+  const updater = new Updater({
+    currentVersion: app.getVersion(),
+    updatesDir: join(app.getPath('userData'), 'updates'),
+    openExternal: (url) => shell.openExternal(url).then(() => {}),
+    quit: () => app.quit(),
+  });
+  ipcMain.handle('vn:update', async (event, method, args) => {
+    const trusted =
+      event.sender === win.webContents &&
+      event.senderFrame === win.webContents.mainFrame &&
+      event.senderFrame?.url === pageUrl;
+    if (!trusted) throw new Error('Yêu cầu cập nhật không hợp lệ.');
+    switch (method) {
+      case 'check':
+        return updater.check();
+      case 'download': {
+        const unsubscribe = updater.subscribe((info) => {
+          if (!win.isDestroyed()) win.webContents.send('vn:update-progress', info);
+        });
+        try {
+          return await updater.download();
+        } finally {
+          unsubscribe();
+        }
+      }
+      case 'install':
+        return updater.install();
+      case 'openRelease':
+        return updater.openRelease();
+      default:
+        throw new Error(`Phương thức cập nhật không được hỗ trợ: ${method}`);
+    }
+  });
   ipcMain.handle('vn:studio', async (event, method, args) => {
     const trusted =
       event.sender === win.webContents &&

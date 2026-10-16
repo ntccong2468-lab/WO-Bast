@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Prompt, PromptInput, PromptVersion, SellerId } from '../shared/contracts';
 import { PromptLibrary } from './PromptLibrary';
 import { blank, toInput } from './PromptEditor';
+import { UpdateBanner } from './UpdateBanner';
 export const pages = [
   'Tổng quan',
   'AI Studio',
@@ -243,6 +244,7 @@ export function App() {
           </div>
         </header>
         <main aria-busy={busy}>
+          <UpdateBanner />
           {error && (
             <div role="alert" className="message error">
               {error}

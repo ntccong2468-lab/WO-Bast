@@ -2,6 +2,12 @@
 
 Ứng dụng desktop Electron + React + TypeScript, lưu dữ liệu bằng SQLite. Bản 0.2 hoàn thành **Kho Prompt và AI Studio**. Adapter OpenAI đã có trong mã ứng dụng; tạo/kiểm định bằng API thật chưa được nghiệm thu. Nội dung sản phẩm và đăng lên Wildberries/Ozon/Yandex chưa triển khai.
 
+## Cập nhật ứng dụng
+
+Từ bản 0.2.1, app có ô **Cập nhật ứng dụng** ở đầu không gian làm việc. Khi có bản phát hành mới, ô này hiển thị phiên bản, nội dung thay đổi bằng tiếng Việt, nút mở trang phát hành và nút tải bộ cài. Tiến trình tải hiển thị theo dung lượng và trạng thái cuối có nút **Cài đặt và khởi động lại**. Bộ cài chỉ được tải từ HTTPS của GitHub Releases; dữ liệu SQLite, ảnh nguồn và khóa đã lưu trong `userData` không bị xóa khi cập nhật.
+
+Manifest phát hành nằm trong mã tại `src/shared/update-contracts.ts`. Khi phát hành phiên bản tiếp theo, cập nhật phiên bản, ghi chú, URL tag và tên asset bộ cài trong manifest trước khi tạo tag `v*` để workflow Windows tạo release.
+
 ## Bản Windows x64 để kiểm thử
 
 Giải nén toàn bộ `VN-Pochta-win32-x64.zip`, mở `VN-Pochta.exe`; không cần cài Node.js. Vào **Cấu hình → Khóa OpenAI API → Lưu khóa an toàn → Kiểm tra kết nối**. Sau đó mở **AI Studio**, tải ảnh thật, chọn prompt, điền biến nếu có, xem trước và xác nhận tạo ảnh có tính phí. Ảnh tạo xong cần audit và seller duyệt trước khi xuất. Bấm thumbnail để xem ảnh lớn; Lịch sử có cả ảnh gốc của từng tác vụ.
@@ -59,6 +65,7 @@ Harness `test:e2e:cloud` khởi động rồi dừng Xvfb riêng, chuyển thư 
 - Lịch sử snapshot đầy đủ, khôi phục tạo phiên bản mới; khôi phục mặc định vẫn giữ lịch sử.
 - Yêu thích, chế độ mặc định và lần sử dụng riêng từng seller; preview sáu biến có báo giá trị thiếu/biến lạ.
 - Cảnh báo trước khi bỏ nội dung chưa lưu, chuyển seller hoặc đóng cửa sổ; trạng thái loading, lỗi và thành công.
+- Trung tâm cập nhật hiển thị ghi chú phiên bản mới, tải bộ cài có tiến trình và mở cài đặt sau khi tải xong.
 - AI Studio: nhập ảnh nguồn PNG/JPEG/WebP, tối đa 6 ảnh, 20 MiB/ảnh và tổng 60 MiB cho mỗi tác vụ; chọn lại ảnh đã lưu.
 - Prompt mặc định cá nhân hoặc chọn trực tiếp từ Kho Prompt; snapshot giữ id/phiên bản và nội dung đã nội suy cho từng job.
 - Tạo ảnh qua OpenAI `gpt-image-1`, audit có schema qua `gpt-4.1-mini`; source được gửi dưới dạng file/structured image inputs thật. Không có API giả trong app.

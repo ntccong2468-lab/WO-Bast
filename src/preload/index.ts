@@ -4,6 +4,8 @@ const invoke = (method: string, ...args: unknown[]) =>
   ipcRenderer.invoke('vn:request', method, args);
 const studioInvoke = (method: string, ...args: unknown[]) =>
   ipcRenderer.invoke('vn:studio', method, args);
+const updateInvoke = (method: string, ...args: unknown[]) =>
+  ipcRenderer.invoke('vn:update', method, args);
 const api: Bridge = {
   studio: {
     preview: (id) => studioInvoke('preview', id),
@@ -28,6 +30,18 @@ const api: Bridge = {
     save: (key) => studioInvoke('credentialSave', key),
     remove: () => studioInvoke('credentialRemove'),
     checkConnection: () => studioInvoke('checkConnection'),
+  },
+  updates: {
+    check: () => updateInvoke('check'),
+    download: () => updateInvoke('download'),
+    install: () => updateInvoke('install'),
+    openRelease: () => updateInvoke('openRelease'),
+    onProgress: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, info: Parameters<typeof listener>[0]) =>
+        listener(info);
+      ipcRenderer.on('vn:update-progress', handler);
+      return () => ipcRenderer.removeListener('vn:update-progress', handler);
+    },
   },
   session: () => invoke('session'),
   switchSeller: (s) => invoke('switchSeller', s),

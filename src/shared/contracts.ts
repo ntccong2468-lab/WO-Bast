@@ -1,4 +1,5 @@
 import type { StudioBridge, CredentialBridge } from './studio-contracts';
+import type { UpdateBridge } from './update-contracts';
 export type SellerId = 'seller-a' | 'seller-b';
 export type Category = 'system' | 'image' | 'quality';
 export interface PromptInput {
@@ -29,6 +30,7 @@ export interface PromptVersion {
 export interface Bridge {
   studio: StudioBridge;
   credentials: CredentialBridge;
+  updates: UpdateBridge;
   session(): Promise<{ seller: SellerId }>;
   switchSeller(seller: SellerId): Promise<void>;
   list(): Promise<Prompt[]>;
