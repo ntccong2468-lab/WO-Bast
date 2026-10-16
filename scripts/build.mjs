@@ -6,7 +6,7 @@ await build({
   platform: 'node',
   format: 'cjs',
   outfile: 'dist/main/index.cjs',
-  external: ['electron', 'better-sqlite3'],
+  external: ['electron', 'better-sqlite3', 'sharp', 'openai', 'undici'],
 });
 await build({
   entryPoints: ['src/preload/index.ts'],

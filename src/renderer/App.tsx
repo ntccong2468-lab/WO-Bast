@@ -1,3 +1,5 @@
+import { StudioPage } from './studio/StudioPage';
+import { ApiSettings } from './studio/ApiSettings';
 import { useEffect, useRef, useState } from 'react';
 import type { Prompt, PromptInput, PromptVersion, SellerId } from '../shared/contracts';
 import { PromptLibrary } from './PromptLibrary';
@@ -222,7 +224,7 @@ export function App() {
           <div className="header-actions">
             <span className="api-status">
               <i />
-              OpenAI · Chưa kết nối
+              OpenAI API
             </span>
             <label>
               Seller hiện hành
@@ -289,6 +291,16 @@ export function App() {
                 });
               }}
             />
+          ) : page === 'AI Studio' || page === 'Lịch sử' ? (
+            <StudioPage
+              key={seller + page}
+              seller={seller}
+              selectedPromptId={studio?.id}
+              historyOnly={page === 'Lịch sử'}
+              onBusyChange={setBusy}
+            />
+          ) : page === 'Cấu hình' ? (
+            <ApiSettings key={seller} seller={seller} onBusyChange={setBusy} />
           ) : (
             <section className="integration-page">
               <span className="eyebrow">VN ПОЧТА</span>

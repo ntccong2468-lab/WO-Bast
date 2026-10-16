@@ -2,7 +2,30 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { Bridge } from '../shared/contracts';
 const invoke = (method: string, ...args: unknown[]) =>
   ipcRenderer.invoke('vn:request', method, args);
+const studioInvoke = (method: string, ...args: unknown[]) =>
+  ipcRenderer.invoke('vn:studio', method, args);
 const api: Bridge = {
+  studio: {
+    preview: (id) => studioInvoke('preview', id),
+    assets: () => studioInvoke('assets'),
+    importImages: () => studioInvoke('importImages'),
+    thumbnail: (id) => studioInvoke('thumbnail', id),
+    prepare: (r) => studioInvoke('prepare', r),
+    create: (r) => studioInvoke('create', r),
+    run: (id) => studioInvoke('run', id),
+    list: () => studioInvoke('list'),
+    get: (id) => studioInvoke('get', id),
+    review: (id, d, c) => studioInvoke('review', id, d, c),
+    retryAudit: (id) => studioInvoke('retryAudit', id),
+    cancelQueued: (id) => studioInvoke('cancelQueued', id),
+    exportApproved: (id) => studioInvoke('exportApproved', id),
+  },
+  credentials: {
+    status: () => studioInvoke('credentialStatus'),
+    save: (key) => studioInvoke('credentialSave', key),
+    remove: () => studioInvoke('credentialRemove'),
+    checkConnection: () => studioInvoke('checkConnection'),
+  },
   session: () => invoke('session'),
   switchSeller: (s) => invoke('switchSeller', s),
   list: () => invoke('list'),

@@ -1,4 +1,11 @@
-import { app, BrowserWindow, ipcMain, dialog, session as electronSession } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  safeStorage,
+  dialog,
+  session as electronSession,
+} from 'electron';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
@@ -7,6 +14,11 @@ import { seed } from './seed';
 import { PromptService } from './prompt-service';
 import { Session } from './session';
 import { dispatch } from './ipc';
+import { AssetStore } from './studio/assets';
+import { CredentialStore } from './studio/credentials';
+import { StudioJobs } from './studio/jobs';
+import { OpenAIStudioAdapter } from './studio/openai-adapter';
+import { dispatchStudio, studioErrorMessage } from './studio/ipc';
 import bundle from '../../resources/default-prompts.json';
 // An explicit data directory also lets automated smoke tests avoid touching user data.
 if (process.env.VN_POCHTA_DATA_DIR) app.setPath('userData', process.env.VN_POCHTA_DATA_DIR);
@@ -33,6 +45,63 @@ app.whenReady().then(() => {
       contextIsolation: true,
       sandbox: true,
     },
+  });
+  const assets = new AssetStore(db, join(app.getPath('userData'), 'assets'));
+  const credentials = new CredentialStore(
+    db,
+    {
+      available: () => safeStorage.isEncryptionAvailable(),
+      backend: () =>
+        process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : 'os-protected',
+      encrypt: (text) => safeStorage.encryptString(text),
+      decrypt: (bytes) => safeStorage.decryptString(bytes),
+    },
+    process.env,
+  );
+  const adapter = (seller: import('../shared/contracts').SellerId) =>
+    new OpenAIStudioAdapter(credentials, seller);
+  const jobs = new StudioJobs(db, service, assets, adapter);
+  jobs.recover();
+  ipcMain.handle('vn:studio', async (event, method, args) => {
+    const trusted =
+      event.sender === win.webContents &&
+      event.senderFrame === win.webContents.mainFrame &&
+      event.senderFrame?.url === pageUrl;
+    const seller = session.seller;
+    try {
+      return await dispatchStudio(
+        {
+          assets,
+          jobs,
+          credentials,
+          adapter,
+          pickImages: async () => {
+            const r = await dialog.showOpenDialog(win, {
+              title: 'Chọn ảnh sản phẩm nguồn',
+              properties: ['openFile', 'multiSelections'],
+              filters: [{ name: 'Ảnh sản phẩm', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+            });
+            return r.canceled ? [] : r.filePaths;
+          },
+          saveImage: async (bytes) => {
+            const r = await dialog.showSaveDialog(win, {
+              title: 'Xuất ảnh đã duyệt',
+              defaultPath: 'vn-pochta-product.png',
+              filters: [{ name: 'PNG', extensions: ['png'] }],
+            });
+            if (r.canceled || !r.filePath) return false;
+            await writeFile(r.filePath, bytes);
+            return true;
+          },
+        },
+        seller,
+        trusted,
+        method,
+        args,
+      );
+    } catch (error) {
+      throw new Error(studioErrorMessage(error));
+    }
   });
   win.removeMenu();
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

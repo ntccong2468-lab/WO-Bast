@@ -703,3 +703,168 @@ footer {
     max-width: 100%;
   }
 }
+.studio-panel,
+.api-settings {
+  background: white;
+  border: 1px solid #e3e3e1;
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+  min-width: 0;
+}
+.api-settings {
+  max-width: 800px;
+}
+.api-settings > .actions {
+  margin-top: 20px;
+}
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  max-height: 400px;
+  overflow: auto;
+}
+.asset-card {
+  position: relative;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: center;
+}
+.asset-card.selected {
+  border: 2px solid #292929;
+  padding: 9px;
+}
+.asset-card input {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: auto;
+  accent-color: #222;
+}
+.asset-card img {
+  height: 110px;
+  width: 100%;
+  object-fit: contain;
+}
+.job-result .editor-top > img {
+  width: 180px;
+  max-height: 230px;
+  object-fit: contain;
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+.studio-panel fieldset > label {
+  margin-bottom: 16px;
+}
+.studio-panel .variable-grid {
+  margin: 20px 0;
+}
+.studio-panel .actions {
+  margin: 18px 0;
+}
+.studio-panel details {
+  margin-top: 16px;
+}
+.studio-panel summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.prompt-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.job-result li {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.job-result small {
+  font-size: 11px;
+  color: #888;
+}
+.studio-page {
+  max-width: 1300px;
+}
+.studio-page .page-heading > .badge {
+  white-space: nowrap;
+}
+.api-settings label input {
+  max-width: 600px;
+}
+@media (max-width: 760px) {
+  .studio-panel,
+  .api-settings {
+    padding: 16px;
+  }
+  .prompt-options {
+    grid-template-columns: 1fr;
+  }
+  .job-result .editor-top {
+    flex-direction: column;
+  }
+  .job-result .editor-top > img {
+    width: 100%;
+    max-height: 280px;
+  }
+  .studio-page .page-heading > .badge {
+    white-space: normal;
+  }
+}
+.image-button {
+  border: 0;
+  padding: 0;
+  max-width: 100%;
+  background: #f7f7f5;
+}
+.image-button:hover {
+  background: #eee;
+}
+.job-result .editor-top > .image-button {
+  width: 180px;
+  flex-shrink: 0;
+}
+.job-result .image-button img {
+  width: 100%;
+  height: 230px;
+  object-fit: contain;
+}
+.image-dialog {
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 16px;
+  max-width: 94vw;
+  max-height: 94vh;
+}
+.image-dialog::backdrop {
+  background: #0009;
+}
+.image-dialog img {
+  display: block;
+  max-width: 84vw;
+  max-height: 75vh;
+  object-fit: contain;
+}
+.image-dialog small {
+  display: block;
+  margin-top: 12px;
+  color: #777;
+}
+.image-dialog > button {
+  display: block;
+  margin: 0 0 12px auto;
+}
+.asset-card .image-button {
+  width: 100%;
+  margin-top: 10px;
+}
+.asset-card label {
+  padding-left: 12px;
+}
+.asset-card input {
+  top: 10px;
+  left: 6px;
+}
