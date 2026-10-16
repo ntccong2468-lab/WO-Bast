@@ -42,3 +42,14 @@ Review độc lập toàn nhánh tìm bốn Important: cancellation bị vô hi�
 ## Phạm vi tệp
 
 `src/main/studio/` quản lý assets, credentials, jobs, OpenAI và IPC; `src/shared/studio-contracts.ts`/`studio-messages.ts` là hợp đồng và thông báo; `src/renderer/studio/` là source gallery, editor, result/review/history và API settings. `src/main/migrations.ts`, main/preload, App và build script nối phân hệ. `tests/studio-*.test.ts`, `tests/ui/studio.test.tsx`, `tests/e2e/studio.spec.ts` cung cấp kiểm chứng. `scripts/package-windows.mjs` đóng gói binary Windows và dependencies production từ lockfile, không có dữ liệu user.
+
+## Gói Windows đã tạo
+
+- File: `/workspace/artifacts/VN-Pochta-win32-x64.zip`
+- Dung lượng: 192439262 bytes (~192 MB).
+- SHA-256: `0b3b74cad5e0ec51682929b62f41b4dc4ce67db2916d0d0811d6702e12f13f17`.
+- Xác minh cuối: ZIP CRC tất cả entries PASS; SHA-256 khớp file .sha256; executable là PE x64; main/preload/renderer trong ZIP khớp build hiện tại; không có database user hoặc .env trong ZIP.
+- Dependency Windows cài bằng npm ci từ lockfile với os=win32/cpu=x64 và kiểm tra native PE. File sharp dùng tên có phiên bản theo package chính thức, không thay checksum của binary.
+- README trong gói khớp README nguồn tại thời điểm kiểm tra. Chưa chạy executable trên Windows và chưa kiểm chứng tạo/audit ảnh với API thật.
+
+Đã lưu start_skill mới cho AI Studio vào bản nháp cấu hình cloud. Việc này không tự Publish; không cần Publish lại chỉ để chạy ZIP Windows vừa tải. Các trường credential được giữ nguyên, không chép giá trị vào cấu hình hướng dẫn.
